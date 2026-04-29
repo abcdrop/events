@@ -1,1 +1,245 @@
 
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binance Event Panel</title>
+
+<style>
+    html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        background: #f0f2f5;
+    }
+
+    .main {
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .container {
+        width: 80vw;
+        height: 80dvh;
+        background: #fff;
+        border-radius: 20px;
+        padding: 16px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .label {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 4px;
+    }
+
+    select {
+        width: 100%;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #ccc;
+    }
+
+    .middle-wrapper {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+    }
+
+    .middle {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        border-radius: 12px;
+        background: #fafafa;
+        padding: 10px;
+    }
+
+    .item {
+        padding: 10px;
+        margin-bottom: 8px;
+        background: #eaeaea;
+        border-radius: 8px;
+    }
+
+    .bottom {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn {
+        flex: 1;
+        padding: 12px;
+        border-radius: 12px;
+        border: none;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-web {
+        background: white;
+        border: 1px solid #ccc;
+    }
+
+    .btn-app {
+        background: orange;
+        color: white;
+    }
+
+    @media (max-width: 480px) {
+        .container {
+            width: 90vw;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="main">
+    <div class="container">
+        
+        <!-- TOP -->
+        <div>
+            <div class="label">Pilih Event</div>
+            <select id="selector">
+                <option value="">-- Pilih --</option>
+            </select>
+        </div>
+
+        <!-- MIDDLE -->
+        <div class="middle-wrapper">
+            <div class="label">Tutorial</div>
+            <div class="middle" id="panel"></div>
+        </div>
+
+        <!-- BOTTOM -->
+        <div class="bottom">
+            <button class="btn btn-web" id="btnWeb" disabled>Buka di web</button>
+            <button class="btn btn-app" id="btnApp" disabled>Buka di aplikasi</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const panel = document.getElementById("panel");
+const selector = document.getElementById("selector");
+const btnWeb = document.getElementById("btnWeb");
+const btnApp = document.getElementById("btnApp");
+
+let eventsData = [];
+let currentEvent = null;
+
+// UTF-8 safe Base64
+function toBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+}
+
+// Binance deep link
+function getBinanceDeepLink(url) {
+    const encoded = toBase64(url);
+    return `bnc://app.binance.com/webview/webview?type=default&needDynamic=true&url=${encoded}`;
+}
+
+// Fetch JSON
+async function loadEvents() {
+    try {
+        const res = await fetch("event.json");
+        eventsData = await res.json();
+
+        eventsData.forEach(ev => {
+            const opt = document.createElement("option");
+            opt.value = ev.id;
+            opt.textContent = ev.name;
+            selector.appendChild(opt);
+        });
+
+        initFromURL();
+
+    } catch (err) {
+        panel.innerHTML = "<div class='item'>Gagal load data</div>";
+        console.error(err);
+    }
+}
+
+// Render
+function renderEvent(eventId) {
+    panel.innerHTML = "";
+    currentEvent = eventsData.find(e => e.id === eventId);
+
+    if (!currentEvent) {
+        btnWeb.disabled = true;
+        btnApp.disabled = true;
+        return;
+    }
+
+    currentEvent.tutorial.forEach(step => {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.textContent = step;
+        panel.appendChild(div);
+    });
+
+    btnWeb.disabled = !currentEvent.url;
+    btnApp.disabled = !currentEvent.url;
+}
+
+// URL param
+function initFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    const eventParam = params.get("event");
+
+    if (eventParam && eventsData.some(e => e.id === eventParam)) {
+        selector.value = eventParam;
+    }
+
+    renderEvent(selector.value);
+}
+
+// Change select
+selector.addEventListener("change", (e) => {
+    const value = e.target.value;
+    renderEvent(value);
+
+    const url = new URL(window.location);
+    if (value) {
+        url.searchParams.set("event", value);
+    } else {
+        url.searchParams.delete("event");
+    }
+    window.history.replaceState({}, "", url);
+});
+
+// Buttons
+btnWeb.addEventListener("click", () => {
+    if (currentEvent?.url) {
+        window.open(currentEvent.url, "_blank");
+    }
+});
+
+btnApp.addEventListener("click", () => {
+    if (currentEvent?.url) {
+        const deepLink = getBinanceDeepLink(currentEvent.url);
+        window.location.href = deepLink;
+    }
+});
+
+// Init
+loadEvents();
+</script>
+
+</body>
+</html>
